@@ -6,6 +6,7 @@ import com.typesafe.sbt.SbtStartScript
 import MimaSettings.mimaSettings
 import com.typesafe.tools.mima.plugin.MimaKeys.previousArtifacts
 import com.typesafe.sbt.JavaVersionCheckPlugin.autoImport._
+import sbtdoge.CrossPerProjectPlugin
 
 object build extends Build {
   import Dependencies._
@@ -53,8 +54,14 @@ object build extends Build {
   val json4sSettings = mavenCentralFrouFrou ++ Seq(
     organization := "org.json4s",
     scalaVersion := "2.11.8",
-    crossScalaVersions := Seq("2.10.6", "2.11.8", "2.12.0-M3"),
-    scalacOptions ++= Seq("-unchecked", "-deprecation", "-optimize", "-feature", "-Yinline-warnings", "-language:existentials", "-language:implicitConversions", "-language:higherKinds", "-language:postfixOps"),
+    crossScalaVersions := Seq("2.10.6", "2.11.8", "2.12.0-M4"),
+    scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature", "-language:existentials", "-language:implicitConversions", "-language:higherKinds", "-language:postfixOps"),
+    scalacOptions ++= {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, scalaMajor)) if scalaMajor <= 11 => Seq("-Yinline-warnings",  "-optimize")
+        case _ => Seq.empty
+      }
+    },
     version := "3.4.0-SNAPSHOT",
     javacOptions ++= Seq("-target", "1.6", "-source", "1.6"),
     javaVersionPrefix in javaVersionCheck := Some{
@@ -79,7 +86,7 @@ object build extends Build {
     id = "json4s",
     base = file("."),
     settings = json4sSettings ++ noPublish
-  ) aggregate(core, native, json4sExt, jacksonSupport, scalazExt, json4sTests, mongo, ast, scalap, examples, benchmark)
+  ).enablePlugins(CrossPerProjectPlugin).aggregate(core, native, json4sExt, jacksonSupport, scalazExt, json4sTests, mongo, ast, scalap, examples, benchmark)
 
   lazy val ast = Project(
     id = "json4s-ast",
@@ -157,6 +164,8 @@ object build extends Build {
     id = "json4s-tests",
     base = file("tests"),
     settings = json4sSettings ++ Seq(
+      // Temporarily disable tests for 2.12 until specs2 publishes for 2.12.0-M4: https://github.com/etorreborre/specs2/issues/469
+      crossScalaVersions := crossScalaVersions.value.filterNot(_.startsWith("2.12")),
       libraryDependencies ++= Seq(specs, mockito),
       initialCommands in (Test, console) :=
         """
